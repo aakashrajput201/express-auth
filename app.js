@@ -1,4 +1,5 @@
 //jshint esversion:6
+require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
@@ -34,6 +35,8 @@ mongoose.connect("mongodb://localhost:27017/userDB");
 const userSchema = new mongoose.Schema({
   email: String,
   password: String,
+  googleId: String,
+  secret: String,
 });
 
 //Adding plugin to salt and hash our passswords and save user to MondoDB
@@ -49,7 +52,7 @@ passport.serializeUser((user, done) => {
 });
 
 passport.deserializeUser((id, done) => {
-  User.findByID(id, (err, user) => {
+  User.findById(id, (err, user) => {
     done(err, user);
   });
 });
@@ -77,7 +80,7 @@ app.get(
   passport.authenticate("google", { scope: ["profile"] })
 );
 app.get(
-  "auth/google/secrete",
+  "/auth/google/secrets",
   passport.authenticate("google", { failureRedirect: "/login" }),
   (req, res) => {
     //Successfull authentication ,redirect to secrets
@@ -92,11 +95,37 @@ app.get("/register", (req, res) => {
 });
 app.get("/secrets", (req, res) => {
   //Checking if request is Authenticated
+  User.find({ secret: { $ne: null } }, (err, foundUsers) => {
+    if (err) {
+      console.log(err);
+    } else {
+      if (foundUsers) {
+        res.render("secrets", { usersWithSecrets: foundUsers });
+      }
+    }
+  });
+});
+app.get("/submit", (req, res) => {
   if (req.isAuthenticated()) {
-    res.render("secrets");
+    res.render("submit");
   } else {
     res.redirect("/login");
   }
+});
+app.post("/submit", (req, res) => {
+  const submittedSecret = req.body.secret;
+  User.findById(req.user.id, (err, foundUser) => {
+    if (err) {
+      console.log(err);
+    } else {
+      if (foundUser) {
+        foundUser.secret = submittedSecret;
+        foundUser.save(() => {
+          res.redirect("/secrets");
+        });
+      }
+    }
+  });
 });
 app.get("/logout", (req, res) => {
   //Logging Out using passport method
